@@ -1,0 +1,79 @@
+diff --git a/src/api/controllers/chat.controller.ts b/src/api/controllers/chat.controller.ts
+index 50f0e36..d4dcf39 100644
+--- a/src/api/controllers/chat.controller.ts
++++ b/src/api/controllers/chat.controller.ts
+@@ -128,6 +128,10 @@ export class ChatController {
+     return await this.waMonitor.waInstances[instanceName].baileysDecryptPollVote(pollCreationMessageKey);
+   }
+ 
++  public async fetchChannelByInvite({ instanceName }: InstanceDto, data: { invite: string }) {
++    return await this.waMonitor.waInstances[instanceName].fetchChannelByInvite(data.invite);
++  }
++
+   public async fetchChannels({ instanceName }: InstanceDto, query: Query<Contact>) {
+     return await this.waMonitor.waInstances[instanceName].fetchChannels(query);
+   }
+diff --git a/src/api/integrations/channel/whatsapp/whatsapp.baileys.service.ts b/src/api/integrations/channel/whatsapp/whatsapp.baileys.service.ts
+index 26c4df6..7081be8 100644
+--- a/src/api/integrations/channel/whatsapp/whatsapp.baileys.service.ts
++++ b/src/api/integrations/channel/whatsapp/whatsapp.baileys.service.ts
+@@ -5980,6 +5980,34 @@ export class BaileysStartupService extends ChannelStartupService {
+     }
+   }
+ 
++  // Consulta um canal pelo convite (só leitura) e devolve o JID @newsletter.
++  public async fetchChannelByInvite(invite: string) {
++    const code = String(invite ?? '')
++      .trim()
++      .replace(/^https?:\/\/(www\.)?whatsapp\.com\/channel\//i, '')
++      .split(/[/?#]/)[0];
++    if (!/^[A-Za-z0-9_-]{10,64}$/.test(code)) {
++      throw new BadRequestException('Invalid channel invite code');
++    }
++    let meta: any;
++    try {
++      meta = await this.client.newsletterMetadata('invite', code);
++    } catch (error) {
++      this.logger.error(`fetchChannelByInvite failed: ${error?.message ?? error}`);
++      throw new BadRequestException('Channel lookup failed');
++    }
++    if (!meta?.id || !String(meta.id).endsWith('@newsletter')) {
++      throw new NotFoundException('Channel not found');
++    }
++    return {
++      id: meta.id,
++      name: meta.name ?? null,
++      description: meta.description ?? null,
++      subscribers: meta.subscribers ?? null,
++      pictureUrl: meta.picture?.url ?? null,
++    };
++  }
++
+   public async fetchChannels(query: Query<Contact>) {
+     const page = Number((query as any)?.page ?? 1);
+     const limit = Number((query as any)?.limit ?? (query as any)?.rows ?? 50);
+diff --git a/src/api/routes/chat.router.ts b/src/api/routes/chat.router.ts
+index aafa0d3..c294fb5 100644
+--- a/src/api/routes/chat.router.ts
++++ b/src/api/routes/chat.router.ts
+@@ -306,6 +306,20 @@ export class ChatRouter extends RouterBroker {
+ 
+         return res.status(HttpStatus.OK).json(response);
+       })
++      .post(this.routerPath('fetchChannelByInvite'), ...guards, async (req, res) => {
++        const response = await this.dataValidate<{ invite: string }>({
++          request: req,
++          schema: {
++            type: 'object',
++            properties: { invite: { type: 'string', minLength: 10, maxLength: 200 } },
++            required: ['invite'],
++          },
++          ClassRef: Object,
++          execute: (instance, data) => chatController.fetchChannelByInvite(instance, data),
++        });
++
++        return res.status(HttpStatus.OK).json(response);
++      })
+       .post(this.routerPath('findChannels'), ...guards, async (req, res) => {
+         const response = await this.dataValidate({
+           request: req,
