@@ -1,14 +1,14 @@
 # Patch da Evolution: consultar canal pelo convite
 
 Adiciona `POST /chat/fetchChannelByInvite/{instância}` com corpo `{"invite":"<link ou código>"}`.
-Só leitura: usa `newsletterMetadata('invite', código)` do Baileys e devolve `{id (…@newsletter), name, description, subscribers, pictureUrl}`.
+Só leitura: usa `newsletterMetadata('invite', código)` do Baileys e devolve `{id (…@newsletter), name, description, subscribers}`.
 Código inválido = 400; canal não achado = 404. A Edge Function deve limitar o uso (cache por código, `limite_whatsapp_conexao`).
 
 Base: EvolutionAPI/evolution-api tag `2.4.0-rc2` (commit 5624bda…). Patch: `canal-por-convite.patch` (3 arquivos, ~46 linhas, testado com `git apply` e `tsc --noEmit`).
 
 ## Publicar
 Actions → "Imagem Evolution (patch canais)" → Run workflow (demora 20–40 min, emulação arm64).
-O último passo mostra `ghcr.io/…/evo-arm64:2.4.0-rc2-canais1@sha256:…`: fixar esse digest no `docker-compose.yml`.
+O último passo mostra `ghcr.io/…/evo-arm64:2.4.0-rc2-canais2@sha256:…`: fixar esse digest no `docker-compose.yml`.
 A imagem nasce privada: a VPS precisa de `docker login ghcr.io` com um token só de leitura (read:packages) — feito pelo fundador.
 
 ## Nova versão da Evolution

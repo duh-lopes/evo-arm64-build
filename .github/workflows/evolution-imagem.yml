@@ -46,7 +46,7 @@ jobs:
           context: evo
           platforms: linux/arm64
           push: true
-          tags: ${{ env.IMAGE }}:${{ env.EVO_TAG }}-canais1
+          tags: ${{ env.IMAGE }}:${{ env.EVO_TAG }}-canais2
 
       - name: Digest para fixar no docker-compose
-        run: echo "${IMAGE}:${EVO_TAG}-canais1@${{ steps.build.outputs.digest }}"
+        run: echo "${IMAGE}:${EVO_TAG}-canais2@${{ steps.build.outputs.digest }}"

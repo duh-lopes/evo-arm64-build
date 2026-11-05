@@ -14,10 +14,10 @@ index 50f0e36..d4dcf39 100644
      return await this.waMonitor.waInstances[instanceName].fetchChannels(query);
    }
 diff --git a/src/api/integrations/channel/whatsapp/whatsapp.baileys.service.ts b/src/api/integrations/channel/whatsapp/whatsapp.baileys.service.ts
-index 26c4df6..7081be8 100644
+index 26c4df6..52d7804 100644
 --- a/src/api/integrations/channel/whatsapp/whatsapp.baileys.service.ts
 +++ b/src/api/integrations/channel/whatsapp/whatsapp.baileys.service.ts
-@@ -5980,6 +5980,34 @@ export class BaileysStartupService extends ChannelStartupService {
+@@ -5980,6 +5980,35 @@ export class BaileysStartupService extends ChannelStartupService {
      }
    }
  
@@ -40,12 +40,13 @@ index 26c4df6..7081be8 100644
 +    if (!meta?.id || !String(meta.id).endsWith('@newsletter')) {
 +      throw new NotFoundException('Channel not found');
 +    }
++    // O Baileys devolve a resposta crua do WhatsApp: nome e descrição ficam em thread_metadata.*.text.
++    const thread = meta.thread_metadata ?? {};
 +    return {
 +      id: meta.id,
-+      name: meta.name ?? null,
-+      description: meta.description ?? null,
-+      subscribers: meta.subscribers ?? null,
-+      pictureUrl: meta.picture?.url ?? null,
++      name: meta.name ?? thread.name?.text ?? null,
++      description: meta.description ?? thread.description?.text ?? null,
++      subscribers: Number(meta.subscribers ?? thread.subscribers_count ?? 0) || null,
 +    };
 +  }
 +
