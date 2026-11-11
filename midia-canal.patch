@@ -1,0 +1,149 @@
+diff --git a/src/api/integrations/channel/whatsapp/whatsapp.baileys.service.ts b/src/api/integrations/channel/whatsapp/whatsapp.baileys.service.ts
+index 26c4df6..55428ae 100644
+--- a/src/api/integrations/channel/whatsapp/whatsapp.baileys.service.ts
++++ b/src/api/integrations/channel/whatsapp/whatsapp.baileys.service.ts
+@@ -2388,6 +2388,91 @@ export class BaileysStartupService extends ChannelStartupService {
+     }
+   }
+ 
++  // Ofertrine (patch midia-canal): foto com legenda em canal (@newsletter). O WhatsApp exige a foto SEM
++  // criptografia, enviada ao endereço próprio de canal (/newsletter/newsletter-image), e, no envio, o "handle"
++  // devolvido pelo upload (atributo media_id) e o mediatype no nó plaintext (mesmo protocolo da whatsmeow).
++  // O Baileys 7.0.0-rc.9 sobe como foto comum e manda sem esses campos: o post fica "enviado" e some do canal.
++  private readonly newsletterMediaHandles = new Map<string, string[]>();
++
++  private async uploadNewsletterImage(image: Buffer): Promise<proto.IMessage> {
++    const fileSha256 = createHash('sha256').update(image).digest();
++    const shaKey = fileSha256.toString('base64');
++    const token = shaKey.replace(/\+/g, '-').replace(/\//g, '_');
++    const { width, height } = await sharp(image).metadata();
++    const jpegThumbnail = await sharp(image).resize(32).jpeg({ quality: 50 }).toBuffer();
++
++    let lastError = 'no upload host';
++    for (const forceGet of [false, true]) {
++      const mediaConn = await this.client.refreshMediaConn(forceGet);
++      for (const { hostname } of mediaConn.hosts) {
++        const url =
++          `https://${hostname}/newsletter/newsletter-image/${token}` +
++          `?auth=${encodeURIComponent(mediaConn.auth)}&token=${encodeURIComponent(token)}`;
++        try {
++          const response = await axios.post(url, image, {
++            headers: {
++              'Content-Type': 'application/octet-stream',
++              Origin: 'https://web.whatsapp.com',
++              Referer: 'https://web.whatsapp.com/',
++            },
++            timeout: 60000,
++            maxBodyLength: Infinity,
++            maxContentLength: Infinity,
++          });
++          const data = response.data && typeof response.data === 'object' ? response.data : {};
++          if (data.url && data.direct_path && data.handle) {
++            if (this.newsletterMediaHandles.size > 200) this.newsletterMediaHandles.clear();
++            const handles = this.newsletterMediaHandles.get(shaKey) ?? [];
++            handles.push(String(data.handle));
++            this.newsletterMediaHandles.set(shaKey, handles);
++            return {
++              imageMessage: {
++                url: String(data.url),
++                directPath: String(data.direct_path),
++                fileSha256,
++                fileLength: image.length,
++                width,
++                height,
++                jpegThumbnail,
++              },
++            };
++          }
++          lastError = `upload response without url/direct_path/handle (keys: ${Object.keys(data).join(',')})`;
++        } catch (error) {
++          lastError = error?.response?.status ? `HTTP ${error.response.status}` : String(error?.message ?? error);
++        }
++      }
++    }
++    throw new Error(`Newsletter image upload failed: ${lastError}`);
++  }
++
++  private async relayNewsletterImage(jid: string, message: proto.IMessage, messageId?: string) {
++    const imageMessage = message.imageMessage;
++    const shaKey = Buffer.from(imageMessage?.fileSha256 ?? []).toString('base64');
++    const handles = this.newsletterMediaHandles.get(shaKey);
++    const handle = handles?.shift();
++    if (!handles?.length) this.newsletterMediaHandles.delete(shaKey);
++    if (!handle) {
++      throw new BadRequestException('Newsletter image must be sent with sendMedia (media handle not found)');
++    }
++
++    const content = proto.Message.fromObject({ imageMessage });
++    const id = messageId || generateMessageIDV2(this.client.user?.id);
++    await this.client.sendNode({
++      tag: 'message',
++      attrs: { to: jid, id, type: 'media', media_id: handle },
++      content: [{ tag: 'plaintext', attrs: { mediatype: 'image' }, content: proto.Message.encode(content).finish() }],
++    });
++
++    const sent = generateWAMessageFromContent(jid, content, {
++      userJid: this.instance.wuid,
++      messageId: id,
++      timestamp: new Date(),
++    });
++    sent.key = { remoteJid: jid, fromMe: true, id };
++    return sent;
++  }
++
+   private async sendMessage(
+     sender: string,
+     message: any,
+@@ -2417,6 +2502,11 @@ export class BaileysStartupService extends ChannelStartupService {
+     // NOTE: NÃO DEVEMOS GERAR O messageId AQUI, SOMENTE SE VIER INFORMADO POR PARAMETRO. A GERAÇÃO ANTERIOR IMPEDE O WZAP DE IDENTIFICAR A SOURCE.
+     if (messageId) option.messageId = messageId;
+ 
++    // Ofertrine (patch midia-canal): foto para canal sai pelo envio próprio de canal (ver uploadNewsletterImage).
++    if (isJidNewsletter(sender) && message?.imageMessage) {
++      return await this.relayNewsletterImage(sender, message, messageId);
++    }
++
+     if (message['viewOnceMessage'] || message['interactiveMessage'] || message['listMessage']) {
+       const m = generateWAMessageFromContent(sender, message, {
+         timestamp: new Date(),
+@@ -3021,7 +3111,7 @@ export class BaileysStartupService extends ChannelStartupService {
+     return statusSent;
+   }
+ 
+-  private async prepareMediaMessage(mediaMessage: MediaMessage) {
++  private async prepareMediaMessage(mediaMessage: MediaMessage, jid?: string) {
+     try {
+       const type = mediaMessage.mediatype === 'ptv' ? 'video' : mediaMessage.mediatype;
+ 
+@@ -3059,12 +3149,16 @@ export class BaileysStartupService extends ChannelStartupService {
+           : Buffer.from(mediaMessage.media, 'base64');
+       }
+ 
+-      const prepareMedia = await prepareWAMessageMedia(
+-        {
+-          [type]: mediaInput,
+-        } as any,
+-        { upload: this.client.waUploadToServer },
+-      );
++      // Ofertrine (patch midia-canal): foto para canal sobe sem criptografia, pelo endereço de canal.
++      const prepareMedia: proto.IMessage =
++        type === 'image' && jid && isJidNewsletter(jid)
++          ? await this.uploadNewsletterImage(mediaInput)
++          : await prepareWAMessageMedia(
++              {
++                [type]: mediaInput,
++              } as any,
++              { upload: this.client.waUploadToServer },
++            );
+ 
+       const mediaType = mediaMessage.mediatype + 'Message';
+ 
+@@ -3269,7 +3363,7 @@ export class BaileysStartupService extends ChannelStartupService {
+ 
+     if (file) mediaData.media = file.buffer.toString('base64');
+ 
+-    const generate = await this.prepareMediaMessage(mediaData);
++    const generate = await this.prepareMediaMessage(mediaData, data.number);
+ 
+     const mediaSent = await this.sendMessageWithTyping(
+       data.number,

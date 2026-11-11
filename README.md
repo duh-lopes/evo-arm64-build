@@ -1,4 +1,6 @@
-# Patch da Evolution: consultar canal pelo convite
+# Patches da Evolution: canal por convite e mídia em canal
+
+`midia-canal.patch`: foto com legenda em canal (@newsletter). Sobe a foto sem criptografia pelo endereço de canal e manda o handle (media_id) e o mediatype, como a whatsmeow.
 
 Adiciona `POST /chat/fetchChannelByInvite/{instância}` com corpo `{"invite":"<link ou código>"}`.
 Só leitura: usa `newsletterMetadata('invite', código)` do Baileys e devolve `{id (…@newsletter), name, description, subscribers}`.

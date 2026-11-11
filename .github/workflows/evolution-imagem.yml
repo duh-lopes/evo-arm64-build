@@ -1,4 +1,4 @@
-# Compila a Evolution API 2.4.0-rc2 + patch "canal por convite" (arm64) e publica no GHCR.
+# Compila a Evolution API 2.4.0-rc2 + patches "canal por convite" e "mídia em canal" (arm64) e publica no GHCR.
 # Manual (workflow_dispatch). Custo zero (minutos do GitHub). Veja whatsapp-service/evolution-patch/README.md
 name: Imagem Evolution (patch canais)
 
@@ -13,6 +13,8 @@ env:
   EVO_REPO: EvolutionAPI/evolution-api
   EVO_TAG: 2.4.0-rc2
   EVO_SHA: 5624bdaea81c58e4db60fe2a3a8de7c48bba1e60
+  # canais3 = canais2 + foto com legenda em canal (@newsletter), patch midia-canal (11/11/2026)
+  SUFIXO: canais3
 
 jobs:
   build:
@@ -26,8 +28,13 @@ jobs:
           git clone --branch "$EVO_TAG" https://github.com/$EVO_REPO.git evo
           test "$(git -C evo rev-parse HEAD)" = "$EVO_SHA"
 
-      - name: Aplicar o patch
-        run: git -C evo apply --check ../canal-por-convite.patch && git -C evo apply ../canal-por-convite.patch
+      - name: Aplicar os patches
+        run: |
+          set -e
+          for p in canal-por-convite.patch midia-canal.patch; do
+            git -C evo apply --check "../$p"
+            git -C evo apply "../$p"
+          done
 
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -46,7 +53,7 @@ jobs:
           context: evo
           platforms: linux/arm64
           push: true
-          tags: ${{ env.IMAGE }}:${{ env.EVO_TAG }}-canais2
+          tags: ${{ env.IMAGE }}:${{ env.EVO_TAG }}-${{ env.SUFIXO }}
 
       - name: Digest para fixar no docker-compose
-        run: echo "${IMAGE}:${EVO_TAG}-canais2@${{ steps.build.outputs.digest }}"
+        run: echo "${IMAGE}:${EVO_TAG}-${SUFIXO}@${{ steps.build.outputs.digest }}"
