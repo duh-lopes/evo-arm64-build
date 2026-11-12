@@ -16,7 +16,8 @@ env:
   # canais3 = canais2 + foto com legenda em canal (@newsletter), patch midia-canal (11/11/2026)
   # canais4 = canais3 + previa de link sem alta qualidade, patch previa-link (12/11/2026)
   # canais5 = canais4 + sem a previa propria da Evolution (externalAdReply), patch previa-link (12/11/2026)
-  SUFIXO: canais5
+  # canais6 = canais5 + log sem dados de mensagens, patch logs-sem-dados (12/11/2026)
+  SUFIXO: canais6
 
 jobs:
   build:
@@ -33,7 +34,7 @@ jobs:
       - name: Aplicar os patches
         run: |
           set -e
-          for p in canal-por-convite.patch midia-canal.patch previa-link.patch; do
+          for p in canal-por-convite.patch midia-canal.patch previa-link.patch logs-sem-dados.patch; do
             git -C evo apply --check "../$p"
             git -C evo apply "../$p"
           done

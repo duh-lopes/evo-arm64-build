@@ -1,0 +1,20 @@
+diff --git a/src/api/integrations/channel/whatsapp/whatsapp.baileys.service.ts b/src/api/integrations/channel/whatsapp/whatsapp.baileys.service.ts
+index 04644d4..8d23262 100644
+--- a/src/api/integrations/channel/whatsapp/whatsapp.baileys.service.ts
++++ b/src/api/integrations/channel/whatsapp/whatsapp.baileys.service.ts
+@@ -236,6 +236,15 @@ function normalizeListType(listMessage?: proto.Message.IListMessage | null): voi
+   }
+ }
+ 
++// LGPD (Ofertrine): a Evolution imprime mensagens recebidas, numeros e nomes com console.log, que ignora LOG_LEVEL.
++// Neste arquivo so passa o que for erro.
++const console = {
++  ...globalThis.console,
++  log: (...args: unknown[]) => {
++    if (args[0] === 'error') globalThis.console.log(...args);
++  },
++};
++
+ export class BaileysStartupService extends ChannelStartupService {
+   private messageProcessor = new BaileysMessageProcessor();
+ 
