@@ -1,0 +1,14 @@
+diff --git a/src/api/integrations/channel/whatsapp/whatsapp.baileys.service.ts b/src/api/integrations/channel/whatsapp/whatsapp.baileys.service.ts
+--- a/src/api/integrations/channel/whatsapp/whatsapp.baileys.service.ts
++++ b/src/api/integrations/channel/whatsapp/whatsapp.baileys.service.ts
+@@ -754,7 +754,9 @@ export class BaileysStartupService extends ChannelStartupService {
+         keys: makeCacheableSignalKeyStore(this.instance.authState.state.keys, P({ level: 'error' }) as any),
+       },
+       msgRetryCounterCache: this.msgRetryCounterCache,
+-      generateHighQualityLinkPreview: true,
++      // Ofertrine (12/11/2026): prévia em alta qualidade chegava como miniatura preta com "play" no WhatsApp.
++      // Sem ela, o Baileys manda só a miniatura JPEG (192 px), que aparece certa.
++      generateHighQualityLinkPreview: false,
+       getMessage: async (key) => (await this.getMessage(key)) as Promise<proto.IMessage>,
+       // Removido browserOptions para usar Multi-Device nativo (não WebClient)
+       markOnlineOnConnect: this.localSettings.alwaysOnline,
