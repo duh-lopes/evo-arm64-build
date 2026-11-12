@@ -14,7 +14,8 @@ env:
   EVO_TAG: 2.4.0-rc2
   EVO_SHA: 5624bdaea81c58e4db60fe2a3a8de7c48bba1e60
   # canais3 = canais2 + foto com legenda em canal (@newsletter), patch midia-canal (11/11/2026)
-  SUFIXO: canais3
+  # canais4 = canais3 + previa de link sem alta qualidade, patch previa-link (12/11/2026)
+  SUFIXO: canais4
 
 jobs:
   build:
@@ -31,7 +32,7 @@ jobs:
       - name: Aplicar os patches
         run: |
           set -e
-          for p in canal-por-convite.patch midia-canal.patch; do
+          for p in canal-por-convite.patch midia-canal.patch previa-link.patch; do
             git -C evo apply --check "../$p"
             git -C evo apply "../$p"
           done
